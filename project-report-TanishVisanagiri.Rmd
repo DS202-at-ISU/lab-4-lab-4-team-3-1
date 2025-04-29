@@ -1,0 +1,140 @@
+---
+title: "progress-report-TanishVisanagiri"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+if (!require(rvest)) install.packages("rvest")
+if (!require(dplyr)) install.packages("dplyr")
+if (!require(stringr)) install.packages("stringr")
+if (!require(readr)) install.packages("readr")
+if (!require(janitor)) install.packages("janitor")
+if (!require(Lahman)) install.packages("Lahman")
+
+library(rvest)
+library(dplyr)
+library(stringr)
+library(readr)
+library(janitor)
+library(Lahman)
+```
+
+## Step 1: Scrape the Hall of Fame data for 2025
+
+```{r scrape-data}
+url <- "https://www.baseball-reference.com/awards/hof_2025.shtml"
+html <- read_html(url)
+tables <- html_table(html)
+hof_table <- tables[[1]]
+actual_col_names <- hof_table[1, ]
+colnames(hof_table) <- actual_col_names
+hof_table <- hof_table[-1, ]
+head(hof_table, 3)
+```
+
+## Step 2: Extract ballots and needed votes information
+
+```{r extract-info}
+page_text <- html_text2(html)
+ballots_pattern <- "\\d+(?= total ballots)"
+ballots <- parse_number(str_extract(page_text, ballots_pattern))
+needed_pattern <- "(?<=\\()\\d+(?= votes? needed)"
+needed <- parse_number(str_extract(page_text, needed_pattern))
+cat("Total ballots:", ballots, "\n")
+cat("Votes needed for induction:", needed, "\n")
+```
+
+## Step 3: Clean and prepare the Hall of Fame data
+
+```{r clean-data}
+hof_2025_clean <- hof_table %>%
+  select(Name, Votes, `%vote`) %>%
+  rename(
+    name = Name,
+    votes = Votes,
+    vote = `%vote`
+  ) %>%
+  mutate(
+    votes = parse_number(votes),
+    vote = parse_number(vote) / 100,
+    key = str_remove_all(tolower(name), "[^a-z]")
+  )
+head(hof_2025_clean, 3)
+```
+
+## Step 4: Match players with their IDs in the Lahman database
+
+```{r match-players}
+name_key <- People %>%
+  mutate(key = str_remove_all(tolower(paste(nameFirst, nameLast)), "[^a-z]")) %>%
+  select(playerID, key)
+
+hof_2025_with_ids <- hof_2025_clean %>%
+  left_join(name_key, by = "key")
+
+hof_2025_with_ids <- hof_2025_with_ids %>%
+  mutate(
+    playerID = case_when(
+      is.na(playerID) & name == "Ichiro Suzuki" ~ "suzukic01",
+      TRUE ~ playerID
+    )
+  )
+
+missing_ids <- hof_2025_with_ids %>%
+  filter(is.na(playerID))
+
+if (nrow(missing_ids) > 0) {
+  cat("Warning: The following players need manual ID mapping:\n")
+  print(missing_ids$name)
+}
+```
+
+## Step 5: Format data to match the HallOfFame structure
+
+```{r format-data}
+hof_2025_final <- hof_2025_with_ids %>%
+  transmute(
+    playerID = playerID,
+    yearID = 2025,
+    votedBy = "BBWAA",
+    ballots = ballots,
+    needed = needed,
+    votes = votes,
+    inducted = if_else(votes >= needed, "Y", "N"),
+    category = "Player",
+    needed_note = "<"
+  ) %>%
+  arrange(desc(votes))
+
+head(hof_2025_final, 3)
+```
+
+## Step 6: Combine with existing HallOfFame data and save
+
+```{r combine-save}
+HallOfFame_complete <- bind_rows(HallOfFame, hof_2025_final)
+write_csv(HallOfFame_complete, "HallOfFame.csv")
+cat("Complete Hall of Fame data saved to HallOfFame.csv\n")
+cat("Total rows in the final dataset:", nrow(HallOfFame_complete), "\n")
+cat("Number of rows added for 2025:", nrow(hof_2025_final), "\n")
+```
+
+## Step 7: Visualization of Hall of Fame inductees over time
+
+```{r visualize}
+library(ggplot2)
+
+HallOfFame_complete %>%
+  ggplot(aes(x = yearID, fill = inducted)) +
+  geom_bar() +
+  labs(
+    title = "Baseball Hall of Fame Voting Results (1936-2025)",
+    x = "Year",
+    y = "Number of Candidates",
+    fill = "Inducted"
+  ) +
+  theme_minimal() +
+  scale_x_continuous(breaks = seq(1936, 2025, by = 10))
+```
