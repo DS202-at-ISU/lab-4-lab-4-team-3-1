@@ -21,7 +21,6 @@ library(janitor)
 library(Lahman)
 ```
 
-## Step 1: Scrape the Hall of Fame data for 2025
 
 ```{r scrape-data}
 url <- "https://www.baseball-reference.com/awards/hof_2025.shtml"
@@ -34,7 +33,6 @@ hof_table <- hof_table[-1, ]
 head(hof_table, 3)
 ```
 
-## Step 2: Extract ballots and needed votes information
 
 ```{r extract-info}
 page_text <- html_text2(html)
@@ -46,7 +44,6 @@ cat("Total ballots:", ballots, "\n")
 cat("Votes needed for induction:", needed, "\n")
 ```
 
-## Step 3: Clean and prepare the Hall of Fame data
 
 ```{r clean-data}
 hof_2025_clean <- hof_table %>%
@@ -64,7 +61,6 @@ hof_2025_clean <- hof_table %>%
 head(hof_2025_clean, 3)
 ```
 
-## Step 4: Match players with their IDs in the Lahman database
 
 ```{r match-players}
 name_key <- People %>%
@@ -91,7 +87,6 @@ if (nrow(missing_ids) > 0) {
 }
 ```
 
-## Step 5: Format data to match the HallOfFame structure
 
 ```{r format-data}
 hof_2025_final <- hof_2025_with_ids %>%
@@ -111,7 +106,6 @@ hof_2025_final <- hof_2025_with_ids %>%
 head(hof_2025_final, 3)
 ```
 
-## Step 6: Combine with existing HallOfFame data and save
 
 ```{r combine-save}
 HallOfFame_complete <- bind_rows(HallOfFame, hof_2025_final)
@@ -121,7 +115,6 @@ cat("Total rows in the final dataset:", nrow(HallOfFame_complete), "\n")
 cat("Number of rows added for 2025:", nrow(hof_2025_final), "\n")
 ```
 
-## Step 7: Visualization of Hall of Fame inductees over time
 
 ```{r visualize}
 library(ggplot2)
