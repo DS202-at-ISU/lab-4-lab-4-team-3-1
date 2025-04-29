@@ -9,4 +9,23 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-#
+```{r}
+library(rvest)
+library(dplyr)
+library(tibble)
+
+url <- "https://www.baseball-reference.com/awards/hof_2025.shtml"
+page <- read_html(url)
+tables <- page %>% html_table(fill = TRUE)
+
+length(tables)
+head(tables[[1]], 3)
+
+data <- tables[[1]]
+actual_col_names <- data[1, ]
+actual_col_names <- as.character(actual_col_names)
+
+
+write.csv(data, file="data.csv", row.names = FALSE)
+readr::write_csv(data, file="data-file.csv")
+```
